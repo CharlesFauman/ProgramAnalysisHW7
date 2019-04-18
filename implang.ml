@@ -63,5 +63,55 @@ let rec stmtToStr c = match c with
 
 
 
+let binopToSMT op = match op with 
+			| Plus -> "+" 
+			| Minus -> "-" 
+			| Times -> "*" 
+			| And -> "and" 
+			| Or -> "or" 
+			| Lt -> "<"
+			| Eq -> "=" ;;
+
+let unopToSMT op = match op with | Not -> "not" ;;
+
+let rec exprToSMT e = match e with 
+	| Num(a) -> string_of_int (a)
+	| Var v -> v
+	| Unary( op, e ) -> "(" ^ unopToSMT(op) ^ " " ^ exprToSMT(e)  ^ ")"
+	| Binary(op, e1, e2) -> "(" ^ binopToSMT(op) ^ " " ^ exprToSMT(e1) ^ " " ^ exprToSMT(e2) ^ ")"
+;;
+
+let rec declareSMT e vars = match e with
+	| Num(a) -> vars
+	| Var v -> vars @ [v]
+	| Unary( op, e ) -> (declareSMT e vars)
+	| Binary(op, e1, e2) -> (declareSMT e2 (declareSMT e1 vars))
+
+let uniq_cons x xs = if List.mem x xs then xs else x :: xs
+
+let remove_from_right xs = List.fold_right uniq_cons xs []
+
+let rec print_list = function 
+[] -> ()
+| e::l -> print_string ("(declare-const " ^ e ^ " Int)\n"); print_list l
+
+let rec var_subst lhs rhs e = match e with 
+	| Num(_) -> e
+	| Var v -> (if v = lhs then rhs else e)
+	| Unary( op, e ) -> Unary( op, (var_subst lhs rhs e) )
+	| Binary(op, e1, e2) -> Binary( op, (var_subst lhs rhs e1), (var_subst lhs rhs e2) )
+
+
+let rec stmtToVC c post_condition = match c with 
+    | Skip -> post_condition
+    | Pre(e) -> let f = Unary(Not, Binary(Or, Unary(Not, e), post_condition)) in (print_list (remove_from_right (declareSMT f [])); f)
+	| Post(e) -> e
+	| Assign(lhs, rhs) -> (var_subst lhs rhs post_condition)
+	| Seq(c1, c2) -> (stmtToVC c1 (stmtToVC c2 post_condition))
+	| Ifthen(e, c1, c2) -> Binary(Or, Binary(And, e, (stmtToVC c1 post_condition)), Binary(And, Unary(Not, e), (stmtToVC c2 post_condition)))
+	| Whileloop(e, inv, c1) -> Binary(Or, Unary(Not, Binary(And, Unary(Not, e), inv)), post_condition)
+
+
+
 
 

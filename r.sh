@@ -3,4 +3,4 @@ set -o pipefail
 echo "compiling"
 make
 echo "running"
-cat test00.c | ./a.out
+cat test23.c | ./a.out > out.txt
